@@ -5,7 +5,7 @@ var app_1 = require("firebase-admin/app");
 var auth_1 = require("firebase-admin/auth");
 var firestore_1 = require("firebase-admin/firestore");
 var admin = require("firebase-admin");
-var serviceAccount = require("fsa.json");
+var serviceAccount = require("./fsa.json");
 var app = (0, app_1.initializeApp)({
     credential: admin.credential.cert(serviceAccount)
 });
