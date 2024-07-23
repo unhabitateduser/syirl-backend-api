@@ -1,5 +1,7 @@
-import express from "express";
-import cors from "cors";
+
+const express= require("express")
+
+const cors = require("cors");
 import { auth, firestore } from "./firebaseConfig";
 
 
@@ -107,14 +109,15 @@ const unsubscribeGameDoc = documentRef.onSnapshot(documentSnapshot => {
 
 
 const app = express();
-const PORT = 4002;
+const PORT = 4058;
 
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
 //👇🏻 New imports
 const http = require("http").Server(app);
-import SocketIO, { Socket } from "socket.io"
+
+const SocketIO = require("socket.io")
 
 const GameServer = new SocketIO.Server(http, {
     cors: {

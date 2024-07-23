@@ -4,7 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "nodemon app.ts"
+    "dev": "nodemon app.ts",
+    "build": "tsc app.ts",
+    "start": "nodemon app.js"
   },
   "author": "",
   "license": "ISC",
@@ -13,6 +15,7 @@
     "firebase-admin": "^11.11.0",
     "nodemon": "^3.0.1",
     "socket.io": "^4.7.2",
-    "ts-node": "^10.9.1"
+    "ts-node": "^10.9.1",
+    "typescript": "^5.5.4"
   }
 }
