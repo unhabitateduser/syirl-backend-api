@@ -1,6 +1,6 @@
 
 const express= require("express")
-
+require('dotenv').config()
 const cors = require("cors");
 import { auth, firestore } from "./firebaseConfig";
 
@@ -10,7 +10,7 @@ let lastLocation2:(LocationObjectCoords & {userID: string})[] = []
 let loc = 1
 
 // Normaly in prod should be passed by parent, each server thread handles a game 
-const GameID = "RKoS1P1h7Sd8pyYHUqWd" // shareCode
+const GameID =process.env.GC // shareCode
 let GameDoc: null | GameType = null
 let GameUsers: null | GameUsersType = null
 let Imposters: string[] = []

@@ -48,13 +48,14 @@ var __generator = (this && this.__generator) || function (thisArg, body) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 var express = require("express");
+require('dotenv').config();
 var cors = require("cors");
 var firebaseConfig_1 = require("./firebaseConfig");
 var lastLocation1 = [];
 var lastLocation2 = [];
 var loc = 1;
 // Normaly in prod should be passed by parent, each server thread handles a game 
-var GameID = "RKoS1P1h7Sd8pyYHUqWd"; // shareCode
+var GameID = process.env.GC; // shareCode
 var GameDoc = null;
 var GameUsers = null;
 var Imposters = [];
