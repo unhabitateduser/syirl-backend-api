@@ -6,7 +6,7 @@ var admin = require("firebase-admin");
 
 
 
-var serviceAccount = require("./scotland-yard-in-real-life-firebase-adminsdk-8w2mf-582ddfaee8.json");
+var serviceAccount = require("./etc/secrets/fsa");
 
 const app = initializeApp({
     credential: admin.credential.cert(serviceAccount)
