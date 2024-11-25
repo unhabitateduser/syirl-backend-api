@@ -116,7 +116,7 @@ GameServer.use(function (socket, next) {
 });
 //👇🏻 Add this before the app.get() block
 GameServer.on('connection', function (socket) { return __awaiter(void 0, void 0, void 0, function () {
-    var IDToken, decodeResponse, userID, locations, _i, _a, userID_1, error_1;
+    var IDToken, decodeResponse, userID, locations_1, d_1, _loop_1, _i, _a, u, error_1;
     return __generator(this, function (_b) {
         switch (_b.label) {
             case 0:
@@ -181,14 +181,30 @@ GameServer.on('connection', function (socket) { return __awaiter(void 0, void 0,
                     // user doenst exist, error
                     throw Error("invalid user");
                 }
-                locations = {};
+                // successfull!
+                // need to send all past players positions
+                socket.join(userID); // private room with user for private communications
+                locations_1 = {};
+                d_1 = Date.now();
+                _loop_1 = function (u) {
+                    if (!LOCATIONS[u].locations || !GameDoc || LOCATIONS[u].locations.length == 0)
+                        return "continue";
+                    locations_1[u] = [];
+                    if (Imposters.includes(u) && !Imposters.includes(userID))
+                        LOCATIONS[u].locations.forEach(function (loc) {
+                            if (d_1 - loc.timestamp > ((GameDoc === null || GameDoc === void 0 ? void 0 : GameDoc.imposterHideTime) || Infinity)) {
+                                locations_1[u].push(loc.coords);
+                            }
+                        });
+                    else
+                        locations_1[u] = LOCATIONS[u].locations.map(function (loc) { return loc.coords; });
+                };
                 for (_i = 0, _a = Object.keys(LOCATIONS); _i < _a.length; _i++) {
-                    userID_1 = _a[_i];
-                    if (!LOCATIONS[userID_1].locations || !GameDoc || LOCATIONS[userID_1].locations.length == 0)
-                        continue;
-                    locations[userID_1] = LOCATIONS[userID_1].locations.map(function (loc) { return loc.coords; });
+                    u = _a[_i];
+                    _loop_1(u);
                 }
-                socket.emit('all-time-player-locations', locations);
+                socket.emit('all-time-player-locations', locations_1);
+                console.log("sending locations ALL", locations_1, LOCATIONS);
                 return [3 /*break*/, 4];
             case 3:
                 error_1 = _b.sent();
@@ -207,12 +223,23 @@ GameServer.on('connection', function (socket) { return __awaiter(void 0, void 0,
                     // @ts-ignore
                     if (!(socket.id in USERS))
                         return console.log("unverified user");
-                    console.log("new player location");
+                    console.log("new player location", data.location.coords);
                     // @ts-ignore
                     var userID = USERS[socket.id];
                     //@ts-ignore
                     LOCATIONS[userID].locations.push(data.location);
                     LOCATIONS[userID].locations[LOCATIONS[userID].locations.length - 1].timestamp = Date.now();
+                    // if imp send straight away his location to other imps  COULD ASSEMBLE WITH OTHER SENDING TO SEND TO EACH USER CUSTOM DATA... FOR OPTIMIZATION AND CLEANNER CODE (ALSO IF NUMBER OF IMPS INCREASE (>2))
+                    if (Imposters.includes(userID)) {
+                        Imposters.forEach(function (impID) {
+                            var _a;
+                            if (impID != userID) {
+                                console.log("sending location of " + userID + " to: " + impID);
+                                GameServer.sockets.in(userID).emit("players-location", (_a = {}, _a[userID] = data.location.coords, _a));
+                            }
+                        });
+                    }
+                    console.log("STATE", LOCATIONS);
                     // @ts-ignore
                     //console.log("new update from socket", socket.id, userID, data.timestamp, data)
                 });
@@ -260,10 +287,11 @@ function updateTime() {
         updateTimeCallback = setTimeout(updateTime, GameDoc.imposterShowTime);
         // send to all players
         console.log("sending imposter visibility update");
-        GameServer.emit("imposter-visiblity", {
-            nextHidePhase: Math.ceil(UpdateCallbackTime / 1000), // currently in show
-            nextShowPhase: Math.ceil((UpdateCallbackTime + GameDoc.imposterHideTime) / 1000)
-        });
+        if (GameDoc.imposterShowTime > 3000)
+            GameServer.emit("imposter-visiblity", {
+                nextHidePhase: Math.ceil(UpdateCallbackTime / 1000), // currently in show
+                nextShowPhase: Math.ceil((UpdateCallbackTime + GameDoc.imposterHideTime) / 1000)
+            });
     }
     else {
         HidePhase = true;
@@ -271,10 +299,11 @@ function updateTime() {
         updateTimeCallback = setTimeout(updateTime, GameDoc.imposterHideTime);
         // send to all players
         console.log("sending imposter visibility update 2");
-        GameServer.emit("imposter-visiblity", {
-            nextShowPhase: Math.ceil(UpdateCallbackTime / 1000), // currently in hide
-            nextHidePhase: Math.ceil((UpdateCallbackTime + GameDoc.imposterShowTime) / 1000)
-        });
+        if (GameDoc.imposterHideTime > 3000)
+            GameServer.emit("imposter-visiblity", {
+                nextShowPhase: Math.ceil(UpdateCallbackTime / 1000), // currently in hide
+                nextHidePhase: Math.ceil((UpdateCallbackTime + GameDoc.imposterShowTime) / 1000)
+            });
     }
 }
 updateTime();
@@ -321,7 +350,7 @@ function sendPlayersLocation() {
             locations[userID] = LOCATIONS[userID].locations[lastLocationPos].coords;
     }
     //console.log("sending now",locations, millis)
-    console.log("sending udpate", locations);
+    console.log("sending udpate", locations, Object.keys(locations));
     if (Object.keys(locations).length > 0)
         GameServer.emit("players-location", locations);
     setTimeout(sendPlayersLocation, updateInterval);

@@ -213,17 +213,25 @@ GameServer.on('connection', async (socket) => {
 
         // successfull!
         // need to send all past players positions
-
+        socket.join(userID) // private room with user for private communications
 
         const locations: {[id:string]: LocationObjectCoords[]} = {}
-        for (const userID of Object.keys(LOCATIONS)) {
-            if (!LOCATIONS[userID].locations || !GameDoc || LOCATIONS[userID].locations.length == 0) continue
-   
-            locations[userID] = LOCATIONS[userID].locations.map(loc => loc.coords)
-    
+        const d = Date.now()
+        for (const u of Object.keys(LOCATIONS)) {
+            if (!LOCATIONS[u].locations || !GameDoc || LOCATIONS[u].locations.length == 0) continue
+            locations[u] = []
+            if (Imposters.includes(u) && !Imposters.includes(userID)) 
+                LOCATIONS[u].locations.forEach(loc => {
+                        if (d-loc.timestamp > (GameDoc?.imposterHideTime || Infinity)) {
+                            locations[u].push(loc.coords)
+                        }
+                    })
+            else locations[u] = LOCATIONS[u].locations.map(loc => loc.coords)
+                    
          
         }
         socket.emit('all-time-player-locations', locations)
+        console.log("sending locations ALL", locations, LOCATIONS)
         
     }
     catch(error) {
@@ -243,16 +251,27 @@ GameServer.on('connection', async (socket) => {
 
     });
 
-    socket.on("location", (data: ClientUpdate) => {
+    socket.on("location", (data: {location: ClientUpdate}) => {
         // @ts-ignore
         if (!(socket.id in USERS)) return console.log("unverified user")
-            console.log("new player location")
+            console.log("new player location", data.location.coords)
         // @ts-ignore
         const userID = USERS[socket.id]
         //@ts-ignore
         LOCATIONS[userID].locations.push(data.location)
         LOCATIONS[userID].locations[LOCATIONS[userID].locations.length-1].timestamp = Date.now()
 
+        // if imp send straight away his location to other imps  COULD ASSEMBLE WITH OTHER SENDING TO SEND TO EACH USER CUSTOM DATA... FOR OPTIMIZATION AND CLEANNER CODE (ALSO IF NUMBER OF IMPS INCREASE (>2))
+        if (Imposters.includes(userID)) {
+            Imposters.forEach(impID => {
+                if (impID != userID)
+                {
+                    console.log("sending location of " + userID + " to: " + impID)
+                    GameServer.sockets.in(userID).emit("players-location", {[userID]: data.location.coords})
+                }
+            })
+        }
+        console.log("STATE", LOCATIONS)
         
         // @ts-ignore
        //console.log("new update from socket", socket.id, userID, data.timestamp, data)
@@ -312,10 +331,11 @@ function updateTime() {
 
         // send to all players
         console.log("sending imposter visibility update")
-        GameServer.emit("imposter-visiblity", {
-            nextHidePhase: Math.ceil(UpdateCallbackTime/1000), // currently in show
-            nextShowPhase: Math.ceil((UpdateCallbackTime + GameDoc.imposterHideTime)/1000)
-        })
+        if (GameDoc.imposterShowTime > 3000)
+            GameServer.emit("imposter-visiblity", {
+                nextHidePhase: Math.ceil(UpdateCallbackTime/1000), // currently in show
+                nextShowPhase: Math.ceil((UpdateCallbackTime + GameDoc.imposterHideTime)/1000)
+            })
         
     } else {
         HidePhase = true
@@ -325,10 +345,11 @@ function updateTime() {
         
         // send to all players
         console.log("sending imposter visibility update 2")
-        GameServer.emit("imposter-visiblity", {
-            nextShowPhase: Math.ceil(UpdateCallbackTime/1000), // currently in hide
-            nextHidePhase: Math.ceil((UpdateCallbackTime + GameDoc.imposterShowTime)/1000)
-        })
+        if (GameDoc.imposterHideTime > 3000)
+            GameServer.emit("imposter-visiblity", {
+                nextShowPhase: Math.ceil(UpdateCallbackTime/1000), // currently in hide
+                nextHidePhase: Math.ceil((UpdateCallbackTime + GameDoc.imposterShowTime)/1000)
+            })
     }
     
 }
@@ -387,7 +408,7 @@ function sendPlayersLocation() {
         
     
     //console.log("sending now",locations, millis)
-    console.log("sending udpate", locations)
+    console.log("sending udpate", locations, Object.keys(locations))
     if (Object.keys(locations).length > 0 ) GameServer.emit("players-location", locations)
     
     setTimeout(sendPlayersLocation, updateInterval)
