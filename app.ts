@@ -190,8 +190,9 @@ GameServer.on('connection', async (socket) => {
             // add user to list
             // @ts-ignore
             USERS[socket.id] = userID
-            // @ts-ignore
-            LOCATIONS[userID] = {IDToken, banned: false, locations: []}
+            if (!LOCATIONS[userID] )
+                // @ts-ignore
+                LOCATIONS[userID] = {IDToken, banned: false, locations: []}
 
         }  else if (GameDoc.public) {  // check if game is public
             // add player to list of players
@@ -203,8 +204,9 @@ GameServer.on('connection', async (socket) => {
             // add user to list
             // @ts-ignore
             USERS[socket.id] = userID
-            // @ts-ignore
-            LOCATIONS[userID] = {IDToken, banned: false, locations: []}
+            if (!LOCATIONS[userID] )
+                // @ts-ignore
+                LOCATIONS[userID] = {IDToken, banned: false, locations: []}
         } else {
             //console.log(GameUsers)
             // user doenst exist, error
@@ -251,10 +253,10 @@ GameServer.on('connection', async (socket) => {
 
     });
 
-    socket.on("location", (data: {location: ClientUpdate}) => {
+    socket.on("location", (data: {location: ClientUpdate, f: boolean}) => {
         // @ts-ignore
         if (!(socket.id in USERS)) return console.log("unverified user")
-            console.log("new player location", data.location.coords)
+            console.log("new player location", data.location.coords, data.f ? "FROM FOREGROUND" : 'FROM BACKGROUND')
         // @ts-ignore
         const userID = USERS[socket.id]
         //@ts-ignore

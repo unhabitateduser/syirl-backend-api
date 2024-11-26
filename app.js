@@ -160,8 +160,9 @@ GameServer.on('connection', function (socket) { return __awaiter(void 0, void 0,
                     // add user to list
                     // @ts-ignore
                     USERS[socket.id] = userID;
-                    // @ts-ignore
-                    LOCATIONS[userID] = { IDToken: IDToken, banned: false, locations: [] };
+                    if (!LOCATIONS[userID])
+                        // @ts-ignore
+                        LOCATIONS[userID] = { IDToken: IDToken, banned: false, locations: [] };
                 }
                 else if (GameDoc.public) { // check if game is public
                     // add player to list of players
@@ -173,8 +174,9 @@ GameServer.on('connection', function (socket) { return __awaiter(void 0, void 0,
                     // add user to list
                     // @ts-ignore
                     USERS[socket.id] = userID;
-                    // @ts-ignore
-                    LOCATIONS[userID] = { IDToken: IDToken, banned: false, locations: [] };
+                    if (!LOCATIONS[userID])
+                        // @ts-ignore
+                        LOCATIONS[userID] = { IDToken: IDToken, banned: false, locations: [] };
                 }
                 else {
                     //console.log(GameUsers)
@@ -223,7 +225,7 @@ GameServer.on('connection', function (socket) { return __awaiter(void 0, void 0,
                     // @ts-ignore
                     if (!(socket.id in USERS))
                         return console.log("unverified user");
-                    console.log("new player location", data.location.coords);
+                    console.log("new player location", data.location.coords, data.f ? "FROM FOREGROUND" : 'FROM BACKGROUND');
                     // @ts-ignore
                     var userID = USERS[socket.id];
                     //@ts-ignore
