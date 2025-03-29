@@ -51,8 +51,23 @@ var express = require("express");
 var cors = require("cors");
 var firestore_1 = require("firebase/firestore");
 var firebaseConfig_1 = require("./firebaseConfig");
-require('dotenv').config();
-// Normaly in prod should be passed by parent, each server thread handles a game 
+require("dotenv").config();
+var COLORS = [
+    "800000",
+    "9A6324",
+    "808000",
+    "469990",
+    "000075",
+    "f58231",
+    "3cb44b",
+    "ffe119",
+    "4363d8",
+    "42d4f4",
+    "911eb4",
+    "f032e6",
+    "bfef45",
+];
+// Normaly in prod should be passed by parent, each server thread handles a game
 var GameID = process.env.GC; // shareCode
 var GameDoc = null;
 var GameUsers = null;
@@ -66,7 +81,7 @@ var HidePhase = false;
 var UpdateCallbackTime = Date.now();
 var updateTimeCallback = null;
 // create listener to game doc
-var documentRef = (0, firestore_1.doc)(firebaseConfig_1.firestore, 'games/' + GameID);
+var documentRef = (0, firestore_1.doc)(firebaseConfig_1.firestore, "games/" + GameID);
 var unsubscribeGameDoc = (0, firestore_1.onSnapshot)(documentRef, function (documentSnapshot) {
     if (documentSnapshot.exists()) {
         // @ts-ignore
@@ -78,15 +93,17 @@ var unsubscribeGameDoc = (0, firestore_1.onSnapshot)(documentRef, function (docu
         // game was deleted, discard this process, handled automatically ??
     }
 });
-var collectionRef = (0, firestore_1.collection)(firebaseConfig_1.firestore, 'games/' + GameID + "/users");
+var collectionRef = (0, firestore_1.collection)(firebaseConfig_1.firestore, "games/" + GameID + "/users");
 var unsubscribeGameUsersCol = (0, firestore_1.onSnapshot)(collectionRef, function (collectionSnapshot) {
     // parse data
     // use collectionSnapshot.docChanges to modify permissions ??
     // parse and convert to key value dict
-    var docs = collectionSnapshot.docs.map(function (doc) { return __assign({ uid: doc.id }, doc.data()); });
+    var docs = collectionSnapshot.docs.map(function (doc) {
+        return __assign({ uid: doc.id }, doc.data());
+    });
     var users = {};
     // @ts-ignore
-    docs.forEach(function (doc) { return users[doc.uid] = doc; });
+    docs.forEach(function (doc) { return (users[doc.uid] = doc); });
     // update obj
     GameUsers = users;
     var tempImps = [];
@@ -107,92 +124,101 @@ var http = require("http").Server(app);
 var socket_io_1 = require("socket.io");
 var GameServer = new socket_io_1.Server(http, {
     cors: {
-        origin: "*" //<http://localhost:3000>
-    }
+        origin: "*", //<http://localhost:3000>
+    },
 });
 GameServer.use(function (socket, next) {
     //console.log("mmm", socket.id, USERS[socket.id])
     next();
 });
 //👇🏻 Add this before the app.get() block
-GameServer.on('connection', function (socket) { return __awaiter(void 0, void 0, void 0, function () {
+GameServer.on("connection", function (socket) { return __awaiter(void 0, void 0, void 0, function () {
     var IDToken, decodeResponse, userID, locations_1, d_1, _loop_1, _i, _a, u, error_1;
     return __generator(this, function (_b) {
         switch (_b.label) {
             case 0:
-                _b.trys.push([0, 3, , 4]);
+                _b.trys.push([0, 7, , 8]);
                 IDToken = socket.handshake.auth.token;
                 return [4 /*yield*/, fetch("https://syirl-auth-backend.netlify.app/.netlify/functions/verify", {
                         method: "POST",
                         body: JSON.stringify({
-                            token: IDToken
-                        })
+                            token: IDToken,
+                        }),
                     })];
             case 1:
                 decodeResponse = _b.sent();
-                return [4 /*yield*/, decodeResponse.text()
-                    // verify user and authorisations
-                ];
+                return [4 /*yield*/, decodeResponse.text()];
             case 2:
                 userID = _b.sent();
                 // verify user and authorisations
                 if (GameDoc === null || GameUsers === null) {
                     throw Error("Game data or Authorized Users hasnt loaded yet -> error while loading ?");
                 }
-                // check if user is allowed to join game
-                if (userID in GameUsers) {
-                    // check that if user is banned
-                    if (GameUsers[userID].banned) {
-                        // this user is banned, destroy socket
-                        throw Error("banned user");
-                    }
-                    // for private games
-                    if (!GameDoc.public) {
-                        if (GameDoc.authorizedUsers.includes(userID)) {
-                            // authorized user
-                        }
-                        else {
-                            // not verified
-                            throw Error("need permission to access this game");
-                        }
-                    }
-                    // authorized user
-                    // add user to list
-                    // @ts-ignore
-                    USERS[socket.id] = userID;
-                    if (!LOCATIONS[userID])
-                        // @ts-ignore
-                        LOCATIONS[userID] = { IDToken: IDToken, banned: false, locations: [] };
+                if (!(userID in GameUsers)) return [3 /*break*/, 3];
+                // check that if user is banned
+                if (GameUsers[userID].banned) {
+                    // this user is banned, destroy socket
+                    throw Error("banned user");
                 }
-                else if (GameDoc.public) { // check if game is public
-                    // add player to list of players
-                    (0, firestore_1.setDoc)((0, firestore_1.doc)(firebaseConfig_1.firestore, "games/".concat(GameID, "/users/").concat(userID)), {
+                // for private games
+                if (!GameDoc.public) {
+                    if (GameDoc.authorizedUsers.includes(userID)) {
+                        // authorized user
+                    }
+                    else {
+                        // not verified
+                        throw Error("need permission to access this game");
+                    }
+                }
+                // authorized user
+                // add user to list
+                // @ts-ignore
+                USERS[socket.id] = userID;
+                if (!LOCATIONS[userID])
+                    // @ts-ignore
+                    LOCATIONS[userID] = { IDToken: IDToken, banned: false, locations: [] };
+                return [3 /*break*/, 6];
+            case 3:
+                if (!GameDoc.public) return [3 /*break*/, 5];
+                // check if game is public
+                // add player to list of players
+                console.log("added new player");
+                return [4 /*yield*/, (0, firestore_1.setDoc)((0, firestore_1.doc)(firebaseConfig_1.firestore, "games/".concat(GameID, "/users/").concat(userID)), {
                         banned: false,
-                        imposter: false
-                    });
-                    // authorized user
-                    // add user to list
+                        imposter: false,
+                    })];
+            case 4:
+                _b.sent();
+                // authorized user
+                // add user to list
+                // @ts-ignore
+                USERS[socket.id] = userID;
+                if (!LOCATIONS[userID])
                     // @ts-ignore
-                    USERS[socket.id] = userID;
-                    if (!LOCATIONS[userID])
-                        // @ts-ignore
-                        LOCATIONS[userID] = { IDToken: IDToken, banned: false, locations: [] };
-                }
-                else {
-                    //console.log(GameUsers)
-                    // user doenst exist, error
-                    throw Error("invalid user");
-                }
+                    LOCATIONS[userID] = { IDToken: IDToken, banned: false, locations: [] };
+                return [3 /*break*/, 6];
+            case 5: 
+            //console.log(GameUsers)
+            // user doenst exist, error
+            throw Error("invalid user");
+            case 6:
                 // successfull!
+                //select color
+                if (GameUsers)
+                    // @ts-ignore
+                    Object.keys(GameUsers).every(function (u) { return COLORS.includes(GameUsers[u].color); });
                 // need to send all past players positions
                 socket.join(userID); // private room with user for private communications
                 locations_1 = {};
                 d_1 = Date.now();
                 _loop_1 = function (u) {
-                    if (!LOCATIONS[u].locations || !GameDoc || LOCATIONS[u].locations.length == 0)
+                    if (!LOCATIONS[u].locations ||
+                        !GameDoc ||
+                        LOCATIONS[u].locations.length == 0)
                         return "continue";
                     locations_1[u] = [];
-                    if (Imposters.includes(u) && !Imposters.includes(userID))
+                    if (Imposters.includes(u))
+                        // && !Imposters.includes(userID)
                         LOCATIONS[u].locations.forEach(function (loc) {
                             if (d_1 - loc.timestamp > ((GameDoc === null || GameDoc === void 0 ? void 0 : GameDoc.imposterHideTime) || Infinity)) {
                                 locations_1[u].push(loc.coords);
@@ -205,27 +231,33 @@ GameServer.on('connection', function (socket) { return __awaiter(void 0, void 0,
                     u = _a[_i];
                     _loop_1(u);
                 }
-                socket.emit('all-time-player-locations', locations_1);
-                console.log("sending locations ALL", locations_1, LOCATIONS);
-                return [3 /*break*/, 4];
-            case 3:
+                socket.emit("all-time-player-locations", locations_1);
+                //console.log("sending locations ALL", locations, LOCATIONS)
+                console.log("emitting location to connected players");
+                return [3 /*break*/, 8];
+            case 7:
                 error_1 = _b.sent();
                 //console.log("failed to verify user", error)
                 // kill socket
                 socket.disconnect();
                 return [2 /*return*/];
-            case 4:
-                ;
-                console.log("\u26A1: ".concat(socket.id, " verified user just connected!"));
-                socket.on('disconnect', function () {
+            case 8:
+                console.log(
+                // @ts-ignore
+                "\u26A1: ".concat(USERS[socket.id], " verified user just connected!"));
+                socket.on("disconnect", function () {
                     socket.disconnect();
-                    console.log('🔥: A user disconnected');
+                    // @ts-ignore
+                    console.log("\uD83D\uDD25: ".concat(GameUsers[USERS[socket.id]].uid, " A user disconnected"));
                 });
                 socket.on("location", function (data) {
                     // @ts-ignore
                     if (!(socket.id in USERS))
                         return console.log("unverified user");
-                    console.log("new player location", data.location.coords, data.f ? "FROM FOREGROUND" : 'FROM BACKGROUND');
+                    // @ts-ignore
+                    console.log(
+                    // @ts-ignore
+                    "new player location from ".concat(GameUsers[USERS[socket.id]].uid, " "), data.f ? "FROM FOREGROUND" : "FROM BACKGROUND", "total locs: ", LOCATIONS[USERS[socket.id]].locations.length + 1, "latest pos: ", data.location.coords.latitude, data.location.coords.longitude);
                     // @ts-ignore
                     var userID = USERS[socket.id];
                     //@ts-ignore
@@ -237,11 +269,12 @@ GameServer.on('connection', function (socket) { return __awaiter(void 0, void 0,
                             var _a;
                             if (impID != userID) {
                                 console.log("sending location of " + userID + " to: " + impID);
-                                GameServer.sockets.in(userID).emit("players-location", (_a = {}, _a[userID] = data.location.coords, _a));
+                                GameServer.sockets
+                                    .in(userID)
+                                    .emit("players-location", (_a = {}, _a[userID] = data.location.coords, _a));
                             }
                         });
                     }
-                    console.log("STATE", LOCATIONS);
                     // @ts-ignore
                     //console.log("new update from socket", socket.id, userID, data.timestamp, data)
                 });
@@ -274,7 +307,7 @@ GameServer.on('connection', function (socket) { return __awaiter(void 0, void 0,
 setTimeout(function () {
     GameServer.emit("global", { message: "1234" });
     // tested and send to all users listening on 'global'
-    //to send to specefic socket do some research or read: 
+    //to send to specefic socket do some research or read:
     // https://stackoverflow.com/questions/4647348/send-message-to-specific-client-with-socket-io-and-node-js
 }, 10000);
 // infinite function callback to start and end when the imposter is visible
@@ -292,7 +325,7 @@ function updateTime() {
         if (GameDoc.imposterShowTime > 3000)
             GameServer.emit("imposter-visiblity", {
                 nextHidePhase: Math.ceil(UpdateCallbackTime / 1000), // currently in show
-                nextShowPhase: Math.ceil((UpdateCallbackTime + GameDoc.imposterHideTime) / 1000)
+                nextShowPhase: Math.ceil((UpdateCallbackTime + GameDoc.imposterHideTime) / 1000),
             });
     }
     else {
@@ -304,7 +337,7 @@ function updateTime() {
         if (GameDoc.imposterHideTime > 3000)
             GameServer.emit("imposter-visiblity", {
                 nextShowPhase: Math.ceil(UpdateCallbackTime / 1000), // currently in hide
-                nextHidePhase: Math.ceil((UpdateCallbackTime + GameDoc.imposterShowTime) / 1000)
+                nextHidePhase: Math.ceil((UpdateCallbackTime + GameDoc.imposterShowTime) / 1000),
             });
     }
 }
@@ -340,7 +373,9 @@ function sendPlayersLocation() {
     //console.log(millis, NextShowTime, Imposters, GameDoc == null, LOCATIONS)
     for (var _i = 0, _a = Object.keys(LOCATIONS); _i < _a.length; _i++) {
         var userID = _a[_i];
-        if (!LOCATIONS[userID].locations || !GameDoc || LOCATIONS[userID].locations.length == 0)
+        if (!LOCATIONS[userID].locations ||
+            !GameDoc ||
+            LOCATIONS[userID].locations.length == 0)
             continue;
         //console.log(Imposters, userID )
         var lastLocationPos = LOCATIONS[userID].locations.length - 1;
@@ -348,11 +383,12 @@ function sendPlayersLocation() {
             if (!HidePhase)
                 locations[userID] = LOCATIONS[userID].locations[lastLocationPos].coords;
         }
-        else if (LOCATIONS[userID].locations[lastLocationPos].timestamp > millis - 5000)
+        else if (LOCATIONS[userID].locations[lastLocationPos].timestamp >
+            millis - 5000)
             locations[userID] = LOCATIONS[userID].locations[lastLocationPos].coords;
     }
     //console.log("sending now",locations, millis)
-    console.log("sending udpate", locations, Object.keys(locations));
+    console.log("sending udpate");
     if (Object.keys(locations).length > 0)
         GameServer.emit("players-location", locations);
     setTimeout(sendPlayersLocation, updateInterval);
@@ -368,12 +404,16 @@ app.get("/api", function (req, res) {
 app.post("/api/bck-loc-update", function (req, res) {
     var _a = req.body, userID = _a.userID, authToken = _a.authToken, locationData = _a.locationData;
     console.log("/api/bck-loc-update", req.body);
-    if (typeof userID != "string" || typeof authToken != "string" || typeof locationData != "object") {
+    if (typeof userID != "string" ||
+        typeof authToken != "string" ||
+        typeof locationData != "object") {
         res.statusCode = 400;
         res.end();
         return;
     }
-    if (!(USERS[userID] && LOCATIONS[USERS[userID]] && LOCATIONS[USERS[userID]].IDToken == authToken)) {
+    if (!(USERS[userID] &&
+        LOCATIONS[USERS[userID]] &&
+        LOCATIONS[USERS[userID]].IDToken == authToken)) {
         res.statusCode = 401;
         res.end();
         return;
@@ -393,4 +433,4 @@ http.listen(PORT, function () {
     userID: 'DCAdUE6QDOaZRPnUWv3kpNOBGrh1'
   }
 
-*/ 
+*/
