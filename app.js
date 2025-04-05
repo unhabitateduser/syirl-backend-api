@@ -72,6 +72,7 @@ var GameID = process.env.GC; // shareCode
 var GameDoc = null;
 var GameUsers = null;
 var Imposters = [];
+var ImposterSettings = {};
 var USERS = {};
 var LOCATIONS = {};
 var updateInterval = 5000; // in ms
@@ -113,6 +114,11 @@ var unsubscribeGameUsersCol = (0, firestore_1.onSnapshot)(collectionRef, functio
             tempImps.push(userID);
     }
     Imposters = tempImps;
+    tempImps.forEach(function (impID) {
+        return ImposterSettings[impID] == null
+            ? (ImposterSettings[impID] = { overrideLastSnapshot: 0 })
+            : null;
+    });
 });
 // server setup
 var app = express();
@@ -220,7 +226,8 @@ GameServer.on("connection", function (socket) { return __awaiter(void 0, void 0,
                     if (Imposters.includes(u))
                         // && !Imposters.includes(userID)
                         LOCATIONS[u].locations.forEach(function (loc) {
-                            if (d_1 - loc.timestamp > ((GameDoc === null || GameDoc === void 0 ? void 0 : GameDoc.imposterHideTime) || Infinity)) {
+                            if (!HidePhase ||
+                                d_1 - loc.timestamp > ((GameDoc === null || GameDoc === void 0 ? void 0 : GameDoc.imposterHideTime) || Infinity)) {
                                 locations_1[u].push(loc.coords);
                             }
                         });
@@ -232,6 +239,21 @@ GameServer.on("connection", function (socket) { return __awaiter(void 0, void 0,
                     _loop_1(u);
                 }
                 socket.emit("all-time-player-locations", locations_1);
+                // send hide/show time:
+                if (!HidePhase) {
+                    console.log("sending imposter visibility update to ", userID);
+                    socket.emit("imposter-visiblity", {
+                        nextHidePhase: Math.ceil(UpdateCallbackTime / 1000), // currently in show
+                        nextShowPhase: Math.ceil((UpdateCallbackTime + GameDoc.imposterHideTime) / 1000),
+                    });
+                }
+                else {
+                    console.log("sending imposter visibility update 2 to ", userID);
+                    socket.emit("imposter-visiblity", {
+                        nextShowPhase: Math.ceil(UpdateCallbackTime / 1000), // currently in hide
+                        nextHidePhase: Math.ceil((UpdateCallbackTime + GameDoc.imposterShowTime) / 1000),
+                    });
+                }
                 //console.log("sending locations ALL", locations, LOCATIONS)
                 console.log("emitting location to connected players");
                 return [3 /*break*/, 8];
@@ -291,7 +313,7 @@ GameServer.on("connection", function (socket) { return __awaiter(void 0, void 0,
                 // admin comands
                 socket.on("si", function () {
                     if (Imposters.includes(USERS[socket.id]))
-                        HidePhase = false;
+                        ImposterSettings[USERS[socket.id]].overrideLastSnapshot = Date.now();
                 });
                 socket.on("setNextShowTime", function (data) {
                     if (!GameDoc)
@@ -332,6 +354,10 @@ function updateTime() {
         HidePhase = true;
         UpdateCallbackTime = Date.now() + GameDoc.imposterHideTime;
         updateTimeCallback = setTimeout(updateTime, GameDoc.imposterHideTime);
+        // reset impostersettings:
+        Object.keys(ImposterSettings).forEach(function (impID) {
+            ImposterSettings[impID].overrideLastSnapshot = 0;
+        });
         // send to all players
         console.log("sending imposter visibility update 2");
         if (GameDoc.imposterHideTime > 3000)
@@ -382,6 +408,22 @@ function sendPlayersLocation() {
         if (Imposters.includes(userID)) {
             if (!HidePhase)
                 locations[userID] = LOCATIONS[userID].locations[lastLocationPos].coords;
+            else {
+                // if (ImposterSettings[userID].overrideLastSnapshot != 0) removed it in case the hide time is like <10s
+                for (var _b = 0, _c = LOCATIONS[userID].locations; _b < _c.length; _b++) {
+                    var ts = _c[_b];
+                    if (ts.timestamp > millis - 30000 &&
+                        ts.timestamp < ImposterSettings[userID].overrideLastSnapshot) {
+                        locations[userID] = ts.coords;
+                        break;
+                    }
+                    else if (ts.timestamp < millis - GameDoc.imposterShowTime) {
+                        locations[userID] =
+                            LOCATIONS[userID].locations[lastLocationPos].coords;
+                        break;
+                    }
+                }
+            }
         }
         else if (LOCATIONS[userID].locations[lastLocationPos].timestamp >
             millis - 5000)

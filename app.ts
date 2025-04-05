@@ -32,6 +32,7 @@ const GameID = process.env.GC; // shareCode
 let GameDoc: null | GameType = null;
 let GameUsers: null | GameUsersType = null;
 let Imposters: string[] = [];
+const ImposterSettings: ImposterSettingType = {};
 const USERS: {
   [key: string]: string;
 } = {};
@@ -44,6 +45,11 @@ let UpdateCallbackTime = Date.now();
 let updateTimeCallback: NodeJS.Timeout | null = null;
 
 // types
+type ImposterSettingType = {
+  [key: string]: {
+    overrideLastSnapshot: number;
+  };
+};
 type LatLng = {
   latitude: number;
   longitude: number;
@@ -126,6 +132,11 @@ const unsubscribeGameUsersCol = onSnapshot(
       if (users[userID].imposter) tempImps.push(userID);
     }
     Imposters = tempImps;
+    tempImps.forEach((impID) =>
+      ImposterSettings[impID] == null
+        ? (ImposterSettings[impID] = { overrideLastSnapshot: 0 })
+        : null
+    );
   }
 );
 
@@ -242,13 +253,35 @@ GameServer.on("connection", async (socket) => {
       if (Imposters.includes(u))
         // && !Imposters.includes(userID)
         LOCATIONS[u].locations.forEach((loc) => {
-          if (d - loc.timestamp > (GameDoc?.imposterHideTime || Infinity)) {
+          if (
+            !HidePhase ||
+            d - loc.timestamp > (GameDoc?.imposterHideTime || Infinity)
+          ) {
             locations[u].push(loc.coords);
           }
         });
       else locations[u] = LOCATIONS[u].locations.map((loc) => loc.coords);
     }
     socket.emit("all-time-player-locations", locations);
+
+    // send hide/show time:
+    if (!HidePhase) {
+      console.log("sending imposter visibility update to ", userID);
+      socket.emit("imposter-visiblity", {
+        nextHidePhase: Math.ceil(UpdateCallbackTime / 1000), // currently in show
+        nextShowPhase: Math.ceil(
+          (UpdateCallbackTime + GameDoc.imposterHideTime) / 1000
+        ),
+      });
+    } else {
+      console.log("sending imposter visibility update 2 to ", userID);
+      socket.emit("imposter-visiblity", {
+        nextShowPhase: Math.ceil(UpdateCallbackTime / 1000), // currently in hide
+        nextHidePhase: Math.ceil(
+          (UpdateCallbackTime + GameDoc.imposterShowTime) / 1000
+        ),
+      });
+    }
     //console.log("sending locations ALL", locations, LOCATIONS)
     console.log("emitting location to connected players");
   } catch (error) {
@@ -262,7 +295,6 @@ GameServer.on("connection", async (socket) => {
     // @ts-ignore
     `⚡: ${USERS[socket.id]} verified user just connected!`
   );
-
   socket.on("disconnect", () => {
     socket.disconnect();
     // @ts-ignore
@@ -321,7 +353,8 @@ GameServer.on("connection", async (socket) => {
   // admin comands
 
   socket.on("si", () => {
-    if (Imposters.includes(USERS[socket.id])) HidePhase = false;
+    if (Imposters.includes(USERS[socket.id]))
+      ImposterSettings[USERS[socket.id]].overrideLastSnapshot = Date.now();
   });
 
   socket.on("setNextShowTime", (data) => {
@@ -365,6 +398,12 @@ function updateTime() {
     HidePhase = true;
     UpdateCallbackTime = Date.now() + GameDoc.imposterHideTime;
     updateTimeCallback = setTimeout(updateTime, GameDoc.imposterHideTime);
+
+    // reset impostersettings:
+
+    Object.keys(ImposterSettings).forEach((impID) => {
+      ImposterSettings[impID].overrideLastSnapshot = 0;
+    });
 
     // send to all players
     console.log("sending imposter visibility update 2");
@@ -424,6 +463,22 @@ function sendPlayersLocation() {
     if (Imposters.includes(userID)) {
       if (!HidePhase)
         locations[userID] = LOCATIONS[userID].locations[lastLocationPos].coords;
+      else {
+        // if (ImposterSettings[userID].overrideLastSnapshot != 0) removed it in case the hide time is like <10s
+        for (const ts of LOCATIONS[userID].locations) {
+          if (
+            ts.timestamp > millis - 30000 &&
+            ts.timestamp < ImposterSettings[userID].overrideLastSnapshot
+          ) {
+            locations[userID] = ts.coords;
+            break;
+          } else if (ts.timestamp < millis - GameDoc.imposterShowTime) {
+            locations[userID] =
+              LOCATIONS[userID].locations[lastLocationPos].coords;
+            break;
+          }
+        }
+      }
     } else if (
       LOCATIONS[userID].locations[lastLocationPos].timestamp >
       millis - 5000
